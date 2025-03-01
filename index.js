@@ -1,8 +1,9 @@
 const { Client, GatewayIntentBits, REST, Routes, ApplicationCommandOptionType, ChannelType } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 
-const TOKEN = 'TU_TOKEN_DEL_BOT';
+const TOKEN = 'tokensito';
 const CLIENT_ID = '1342902515666260039';
 const SERVER_ID_SIN_INVITACION = '1305036939078144010'; // Servidor donde NO se enviará la invitación
 const CONFIG_FILE = 'bypass_channels.json';
@@ -75,69 +76,79 @@ client.on('interactionCreate', async (interaction) => {
     const link = interaction.options.getString('link');
 
     if (!interaction.guild) {
-      return interaction.reply({ content: '❌ No puedes usar este comando en mensajes directos.', ephemeral: true });
+        return interaction.reply({ content: '❌ No puedes usar este comando en mensajes directos.', ephemeral: true });
     }
 
-    await interaction.deferReply();
+    // Enviar mensaje inicial indicando que se está procesando el bypass
+    await interaction.reply({ content: 'Bypassing your link...', ephemeral: false });
 
     try {
-      const apiUrl = `http://fi4.bot-hosting.net:22869/bypass?url=${encodeURIComponent(link)}&key=TestHub-NlF10xdtlxlYVYQhV0lI-mzxnxd`;
-      const response = await axios.get(apiUrl);
+        const apiUrl = `http://fi4.bot-hosting.net:22869/bypass?url=${encodeURIComponent(link)}&key=TestHub-NlF10xdtlxlYVYQhV0lI-mzxnxd`;
+        const response = await axios.get(apiUrl);
 
-      console.log(response.data); // Ver la respuesta completa en consola
+        console.log(response.data); // Ver la respuesta completa en consola
 
-      const bypassedResult = response.data.result || response.data.link || response.data.url; 
+        const bypassedResult = response.data.result || response.data.link || response.data.url;
 
-      if (response.data.result?.includes('bypass fail! this proxy has been rate-limited')) {
-        return interaction.editReply('⏳ **Espera un momento y vuelve a usar el comando** 🥺');
-      }
-
-      let embedDescription = '🔓 **Resultado del bypass:**\n';
-      
-      if (bypassedResult) {
-        if (bypassedResult.startsWith('http')) {
-          embedDescription += `[🔗 Click aquí](${bypassedResult})`;
-        } else {
-          embedDescription += `\`${bypassedResult}\``;
+        if (response.data.result?.includes('bypass fail! this proxy has been rate-limited')) {
+            return interaction.editReply('⏳ **Espera un momento y vuelve a usar el comando** 🥺');
         }
-      } else {
-        embedDescription = '❌ No se pudo bypassear este enlace.';
-      }
 
-      const embed = {
-        title: '✅ | Bypass exitoso!',
-        description: embedDescription,
-        color: parseInt('00FF00', 16), // Verde
-        footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
-        timestamp: new Date()
-      };
+        let embedDescription = '🔓 **Resultado del bypass:**\n';
+        if (bypassedResult) {
+            if (bypassedResult.startsWith('http')) {
+                embedDescription += `[🔗 Click aquí](${bypassedResult})`;
+            } else {
+                embedDescription += `\`${bypassedResult}\``;
+            }
+        } else {
+            embedDescription = '❌ No se pudo bypassear este enlace.';
+        }
 
-      await interaction.editReply({
-        content: `${interaction.user} tu enlace ha sido bypasseado.\n\n`,
-        embeds: [embed]
-      });
+        const embed = new EmbedBuilder()
+            .setTitle('✅ | Bypass exitoso!')
+            .setDescription(embedDescription)
+            .setColor('Green')
+            .setFooter({ text: 'MZXN | OFFICIAL', iconURL: client.user?.displayAvatarURL() || '' })
+            .setTimestamp();
 
-      if (bypassedResult && interaction.guild.id !== SERVER_ID_SIN_INVITACION) {
-        await interaction.followUp({
-          content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
-          ephemeral: true
+        // Botón "Add Bot"
+        const addBotButton = new ButtonBuilder()
+            .setLabel('Add Bot')
+            .setStyle(ButtonStyle.Link)
+            .setURL('https://discord.com/oauth2/authorize?client_id=1342902515666260039&permissions=2147567616&integration_type=0&scope=applications.commands+bot');
+
+        const row = new ActionRowBuilder().addComponents(addBotButton);
+
+        await interaction.editReply({
+            embeds: [embed],
+            components: [row] // Agregar el botón
         });
-      }
+
+        // Enviar mensaje de invitación si el servidor no es el específico
+        const SERVER_ID_SIN_INVITACION = 'ID_DEL_SERVIDOR_A_EXCLUIR';
+        if (bypassedResult && interaction.guild.id !== SERVER_ID_SIN_INVITACION) {
+            await interaction.followUp({
+                content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
+                ephemeral: true
+            });
+        }
 
     } catch (error) {
-      console.error('Error al obtener la respuesta:', error);
-      await interaction.editReply({
-        embeds: [{
-          title: '❌ | Bypass fallido!',
-          description: 'No se pudo obtener el enlace.',
-          fields: [{ name: '🔒 Error:', value: `\`${error.message || 'Error desconocido'}\`` }],
-          color: parseInt('FF0000', 16),
-          footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
-          timestamp: new Date()
-        }]
-      });
+        console.error('Error al obtener la respuesta:', error);
+        await interaction.editReply({
+            embeds: [
+                new EmbedBuilder()
+                    .setTitle('❌ | Bypass fallido!')
+                    .setDescription('No se pudo obtener el enlace.')
+                    .addFields({ name: '🔒 Error:', value: `\`${error.message || 'Error desconocido'}\`` })
+                    .setColor('Red')
+                    .setFooter({ text: 'MZXN | OFFICIAL', iconURL: client.user?.displayAvatarURL() || '' })
+                    .setTimestamp()
+            ]
+        });
     }
-  }
+}
 
   // Comando /set-channel
   if (interaction.commandName === 'set-channel') {
