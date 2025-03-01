@@ -66,34 +66,43 @@ client.on('interactionCreate', async (interaction) => {
 
       console.log(response.data); // Ver la respuesta completa en consola
 
-      // Obtener el enlace bypass (si existe)
-      const bypassedLink = response.data.result || response.data.link || response.data.url; 
+      // Obtener el resultado de la API
+      const bypassedResult = response.data.result || response.data.link || response.data.url; 
 
-      // Construir descripción del embed dinámicamente
-      let embedDescription = "Aquí tienes tu enlace bypass:";
-      if (bypassedLink) {
-        embedDescription += `\n[🔗 Click aquí](${bypassedLink})`;
+      let embedDescription = '🔓 **Resultado del bypass:**\n';
+      
+      if (bypassedResult) {
+        // Si el resultado parece un enlace, agregar "Click aquí"
+        if (bypassedResult.startsWith('http')) {
+          embedDescription += `[🔗 Click aquí](${bypassedResult})`;
+        } else {
+          // Si es solo texto (por ejemplo, una clave), mostrarlo sin "Click aquí"
+          embedDescription += `\`${bypassedResult}\``;
+        }
       } else {
-        embedDescription = "❌ No se pudo bypassear este enlace.";
+        embedDescription = '❌ No se pudo bypassear este enlace.';
       }
 
-      // Mensaje principal con la mención y el embed
+      // Crear el embed
+      const embed = {
+        title: '✅ | Bypass exitoso!',
+        description: embedDescription,
+        color: parseInt('00FF00', 16), // Verde
+        footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
+        timestamp: new Date()
+      };
+
+      // Enviar mensaje con mención y embed
       await interaction.editReply({
         content: `${interaction.user} tu enlace ha sido bypasseado.\n\n`,
-        embeds: [{
-          title: bypassedLink ? '✅ | Bypass exitoso!' : '❌ | Bypass fallido!',
-          description: embedDescription,
-          color: bypassedLink ? parseInt('00FF00', 16) : parseInt('FF0000', 16), // Verde si fue exitoso, rojo si falló
-          footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
-          timestamp: new Date()
-        }]
+        embeds: [embed]
       });
 
       // Solo enviar el link del servidor si el bypass fue exitoso
-      if (bypassedLink) {
+      if (bypassedResult) {
         await interaction.followUp({
           content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
-          ephemeral: false // Cambia a true si solo quieres que lo vea quien usó el comando
+          ephemeral: false
         });
       }
 
