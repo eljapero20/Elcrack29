@@ -3,6 +3,7 @@ const axios = require('axios');
 
 const TOKEN = 'TU_TOKEN_DEL_BOT';
 const CLIENT_ID = '1342902515666260039';
+const SERVER_ID_SIN_INVITACION = '1305036939078144010'; // Servidor donde NO se enviará la invitación
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
@@ -98,8 +99,8 @@ client.on('interactionCreate', async (interaction) => {
         embeds: [embed]
       });
 
-      // Solo enviar el link del servidor si el bypass fue exitoso
-      if (bypassedResult) {
+      // Solo enviar el link del servidor si el bypass fue exitoso y NO está en el servidor con ID bloqueado
+      if (bypassedResult && interaction.guild.id !== SERVER_ID_SIN_INVITACION) {
         await interaction.followUp({
           content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
           ephemeral: false
