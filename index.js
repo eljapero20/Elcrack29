@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, ApplicationCommandOptionType } = require('discord.js');
 const axios = require('axios');
 
-// 🔴 Inserta tu token y Client ID aquí
 const TOKEN = 'TU_TOKEN_DEL_BOT';
 const CLIENT_ID = '1342902515666260039';
 
@@ -17,7 +16,7 @@ const commands = [
     options: [
       {
         name: 'link',
-        type: ApplicationCommandOptionType.String, // Uso correcto de ApplicationCommandOptionType
+        type: ApplicationCommandOptionType.String,
         description: 'El enlace a bypass',
         required: true
       }
@@ -54,21 +53,30 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: 'No puedes usar este comando en mensajes directos.', ephemeral: true });
     }
 
-    await interaction.deferReply(); // Evita que parezca inactivo
+    await interaction.deferReply(); // Evita que parezca inactivo mientras procesa
 
     try {
       const apiUrl = `http://fi4.bot-hosting.net:22869/bypass?url=${encodeURIComponent(link)}&key=TestHub-NlF10xdtlxlYVYQhV0lI-mzxnxd`;
-      const response = await axios.get(apiUrl);
+      const response = await axios.get(apiUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json'
+        }
+      });
 
-      if (!response.data || !response.data.success || !response.data.result) {
-        throw new Error(response.data.message || 'La API no devolvió un resultado válido.');
+      console.log(response.data); // Ver la respuesta completa en consola
+
+      // Verificar si la API devolvió el enlace correctamente
+      const bypassedLink = response.data.result || response.data.link || response.data.url; // Adaptar según el formato de la respuesta
+
+      if (!bypassedLink) {
+        throw new Error('La API no devolvió un enlace válido.');
       }
 
       await interaction.editReply({
         embeds: [{
           title: '✅ | Bypass exitoso!',
-          thumbnail: { url: interaction.user.displayAvatarURL() },
-          fields: [{ name: '🔓 Resultado:', value: `\`${response.data.result}\`` }],
+          description: `Aquí tienes tu enlace bypass:\n[Click aquí](${bypassedLink})`,
           color: parseInt('00FF00', 16), // Verde
           footer: { text: 'YANZZ | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
           timestamp: new Date()
@@ -76,10 +84,11 @@ client.on('interactionCreate', async (interaction) => {
       });
 
     } catch (error) {
+      console.error('Error al obtener la respuesta:', error);
       await interaction.editReply({
         embeds: [{
           title: '❌ | Bypass fallido!',
-          thumbnail: { url: interaction.user.displayAvatarURL() },
+          description: 'No se pudo obtener el enlace.',
           fields: [{ name: '🔒 Error:', value: `\`${error.message || 'Error desconocido'}\`` }],
           color: parseInt('FF0000', 16), // Rojo
           footer: { text: 'YANZZ | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
