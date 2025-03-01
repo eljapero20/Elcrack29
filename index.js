@@ -1,15 +1,27 @@
-const { Client, GatewayIntentBits, REST, Routes, ApplicationCommandOptionType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ApplicationCommandOptionType, ChannelType } = require('discord.js');
 const axios = require('axios');
+const fs = require('fs');
 
 const TOKEN = 'TU_TOKEN_DEL_BOT';
 const CLIENT_ID = '1342902515666260039';
 const SERVER_ID_SIN_INVITACION = '1305036939078144010'; // Servidor donde NO se enviará la invitación
+const CONFIG_FILE = 'bypass_channels.json';
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
-// Cargar comandos
+// Cargar configuración de canales
+let bypassChannels = {};
+if (fs.existsSync(CONFIG_FILE)) {
+  bypassChannels = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+}
+
+// Comandos a registrar
 const commands = [
   {
     name: 'bypass',
@@ -20,6 +32,19 @@ const commands = [
         type: ApplicationCommandOptionType.String,
         description: 'El enlace a bypassear',
         required: true
+      }
+    ]
+  },
+  {
+    name: 'set-channel',
+    description: 'Configura un canal para hacer bypass automático.',
+    options: [
+      {
+        name: 'canal',
+        type: ApplicationCommandOptionType.Channel,
+        description: 'Elige el canal donde se hará bypass automáticamente.',
+        required: true,
+        channel_types: [ChannelType.GuildText]
       }
     ]
   }
@@ -49,42 +74,36 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'bypass') {
     const link = interaction.options.getString('link');
 
-    // Evitar uso en DMs
     if (!interaction.guild) {
       return interaction.reply({ content: '❌ No puedes usar este comando en mensajes directos.', ephemeral: true });
     }
 
-    await interaction.deferReply(); // Evita que parezca inactivo mientras procesa
+    await interaction.deferReply();
 
     try {
       const apiUrl = `http://fi4.bot-hosting.net:22869/bypass?url=${encodeURIComponent(link)}&key=TestHub-NlF10xdtlxlYVYQhV0lI-mzxnxd`;
-      const response = await axios.get(apiUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json'
-        }
-      });
+      const response = await axios.get(apiUrl);
 
       console.log(response.data); // Ver la respuesta completa en consola
 
-      // Obtener el resultado de la API
       const bypassedResult = response.data.result || response.data.link || response.data.url; 
+
+      if (response.data.result?.includes('bypass fail! this proxy has been rate-limited')) {
+        return interaction.editReply('⏳ **Espera un momento y vuelve a usar el comando** 🥺');
+      }
 
       let embedDescription = '🔓 **Resultado del bypass:**\n';
       
       if (bypassedResult) {
-        // Si el resultado parece un enlace, agregar "Click aquí"
         if (bypassedResult.startsWith('http')) {
           embedDescription += `[🔗 Click aquí](${bypassedResult})`;
         } else {
-          // Si es solo texto (por ejemplo, una clave), mostrarlo sin "Click aquí"
           embedDescription += `\`${bypassedResult}\``;
         }
       } else {
         embedDescription = '❌ No se pudo bypassear este enlace.';
       }
 
-      // Crear el embed
       const embed = {
         title: '✅ | Bypass exitoso!',
         description: embedDescription,
@@ -93,17 +112,15 @@ client.on('interactionCreate', async (interaction) => {
         timestamp: new Date()
       };
 
-      // Enviar mensaje con mención y embed
       await interaction.editReply({
         content: `${interaction.user} tu enlace ha sido bypasseado.\n\n`,
         embeds: [embed]
       });
 
-      // Solo enviar el link del servidor si el bypass fue exitoso y NO está en el servidor con ID bloqueado
       if (bypassedResult && interaction.guild.id !== SERVER_ID_SIN_INVITACION) {
         await interaction.followUp({
           content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
-          ephemeral: false
+          ephemeral: true
         });
       }
 
@@ -114,12 +131,85 @@ client.on('interactionCreate', async (interaction) => {
           title: '❌ | Bypass fallido!',
           description: 'No se pudo obtener el enlace.',
           fields: [{ name: '🔒 Error:', value: `\`${error.message || 'Error desconocido'}\`` }],
-          color: parseInt('FF0000', 16), // Rojo
+          color: parseInt('FF0000', 16),
           footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
           timestamp: new Date()
         }]
       });
     }
+  }
+
+  // Comando /set-channel
+  if (interaction.commandName === 'set-channel') {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!member.permissions.has('ManageChannels') && interaction.user.id !== interaction.guild.ownerId) {
+      return interaction.reply({ content: '❌ No tienes permisos para usar este comando.', ephemeral: true });
+    }
+
+    const canal = interaction.options.getChannel('canal');
+    if (!canal || canal.type !== ChannelType.GuildText) {
+      return interaction.reply({ content: '❌ Debes seleccionar un canal de texto válido.', ephemeral: true });
+    }
+
+    bypassChannels[interaction.guild.id] = canal.id;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(bypassChannels, null, 2));
+
+    await interaction.reply({
+      content: `✅ Los enlaces enviados en <#${canal.id}> serán bypasseados automáticamente.`,
+      ephemeral: true
+    });
+  }
+});
+
+// Manejo de mensajes en el canal configurado
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+
+  const canalConfigurado = bypassChannels[message.guild.id];
+  if (!canalConfigurado || message.channel.id !== canalConfigurado) return;
+
+  const enlaceRegex = /(https?:\/\/[^\s]+)/g;
+  const enlaces = message.content.match(enlaceRegex);
+
+  if (!enlaces) {
+    return message.reply('❌ Pon un enlace válido.');
+  }
+
+  await message.channel.sendTyping();
+  try {
+    const apiUrl = `http://fi4.bot-hosting.net:22869/bypass?url=${encodeURIComponent(enlaces[0])}&key=TestHub-NlF10xdtlxlYVYQhV0lI-mzxnxd`;
+    const response = await axios.get(apiUrl);
+
+    if (response.data.result?.includes('bypass fail! this proxy has been rate-limited')) {
+      return message.reply('⏳ **Espera un momento y vuelve a enviar el enlace** 🥺');
+    }
+
+    const bypassedResult = response.data.result || response.data.link || response.data.url;
+
+    let embedDescription = '🔓 **Resultado del bypass:**\n';
+    if (bypassedResult) {
+      if (bypassedResult.startsWith('http')) {
+        embedDescription += `[🔗 Click aquí](${bypassedResult})`;
+      } else {
+        embedDescription += `\`${bypassedResult}\``;
+      }
+    } else {
+      embedDescription = '❌ No se pudo bypassear este enlace.';
+    }
+
+    const embed = {
+      title: '✅ | Bypass exitoso!',
+      description: embedDescription,
+      color: parseInt('00FF00', 16),
+      footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
+      timestamp: new Date()
+    };
+
+    await message.reply({ embeds: [embed] });
+
+  } catch (error) {
+    console.error('Error en bypass:', error);
+    await message.reply('❌ No se pudo procesar el enlace.');
   }
 });
 
