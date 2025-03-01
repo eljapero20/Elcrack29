@@ -17,7 +17,7 @@ const commands = [
       {
         name: 'link',
         type: ApplicationCommandOptionType.String,
-        description: 'El enlace a bypass',
+        description: 'El enlace a bypassear',
         required: true
       }
     ]
@@ -50,7 +50,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // Evitar uso en DMs
     if (!interaction.guild) {
-      return interaction.reply({ content: 'No puedes usar este comando en mensajes directos.', ephemeral: true });
+      return interaction.reply({ content: '❌ No puedes usar este comando en mensajes directos.', ephemeral: true });
     }
 
     await interaction.deferReply(); // Evita que parezca inactivo mientras procesa
@@ -66,22 +66,36 @@ client.on('interactionCreate', async (interaction) => {
 
       console.log(response.data); // Ver la respuesta completa en consola
 
-      // Verificar si la API devolvió el enlace correctamente
-      const bypassedLink = response.data.result || response.data.link || response.data.url; // Adaptar según el formato de la respuesta
+      // Obtener el enlace bypass (si existe)
+      const bypassedLink = response.data.result || response.data.link || response.data.url; 
 
-      if (!bypassedLink) {
-        throw new Error('La API no devolvió un enlace válido.');
+      // Construir descripción del embed dinámicamente
+      let embedDescription = "Aquí tienes tu enlace bypass:";
+      if (bypassedLink) {
+        embedDescription += `\n[🔗 Click aquí](${bypassedLink})`;
+      } else {
+        embedDescription = "❌ No se pudo bypassear este enlace.";
       }
 
+      // Mensaje principal con la mención y el embed
       await interaction.editReply({
+        content: `${interaction.user} tu enlace ha sido bypasseado.\n\n`,
         embeds: [{
-          title: '✅ | Bypass exitoso!',
-          description: `Aquí tienes tu enlace bypass:\n[Click aquí](${bypassedLink})`,
-          color: parseInt('00FF00', 16), // Verde
-          footer: { text: 'YANZZ | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
+          title: bypassedLink ? '✅ | Bypass exitoso!' : '❌ | Bypass fallido!',
+          description: embedDescription,
+          color: bypassedLink ? parseInt('00FF00', 16) : parseInt('FF0000', 16), // Verde si fue exitoso, rojo si falló
+          footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
           timestamp: new Date()
         }]
       });
+
+      // Solo enviar el link del servidor si el bypass fue exitoso
+      if (bypassedLink) {
+        await interaction.followUp({
+          content: `🌐 Únete a nuestro servidor de Discord: https://discord.gg/BtY4vnhxmF`,
+          ephemeral: false // Cambia a true si solo quieres que lo vea quien usó el comando
+        });
+      }
 
     } catch (error) {
       console.error('Error al obtener la respuesta:', error);
@@ -91,7 +105,7 @@ client.on('interactionCreate', async (interaction) => {
           description: 'No se pudo obtener el enlace.',
           fields: [{ name: '🔒 Error:', value: `\`${error.message || 'Error desconocido'}\`` }],
           color: parseInt('FF0000', 16), // Rojo
-          footer: { text: 'YANZZ | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
+          footer: { text: 'MZXN | OFFICIAL', icon_url: client.user?.displayAvatarURL() || '' },
           timestamp: new Date()
         }]
       });
